@@ -1,27 +1,20 @@
-const int ledPin = 10; // Pin, na ktorom je pripojená LED
+const int ledPin = 10;
 String sprava;
+int IntSprava;
 
 void setup() {
   pinMode(ledPin, OUTPUT);
   Serial.begin(9600);
-  Serial.println("Seriova linka je pripravena");
 }
 
 void loop() {
   if (Serial.available() > 0) {
     sprava = Serial.readString();
-    sprava.trim(); // Odstránenie medzier a nového riadka
+    Serial.print("Sprava ako string = ");
+    Serial.println(sprava); // Výpis reťazca
 
-    if (sprava == "on") {
-      digitalWrite(ledPin, HIGH);
-      Serial.println("LED zapnuta");
-    } 
-    else if (sprava == "off") {
-      digitalWrite(ledPin, LOW);
-      Serial.println("LED vypnuta");
-    } 
-    else  {
-      Serial.println("Error");
-    }
+    IntSprava = sprava.toInt(); // Konverzia na číslo
+    Serial.print("Sprava ako int = ");
+    Serial.println(IntSprava); // Výpis čísla
   }
 }
