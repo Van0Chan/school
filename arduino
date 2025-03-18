@@ -1,13 +1,27 @@
+const int ledPin = 10; // Pin, na ktorom je pripojená LED
 String sprava;
 
-void setup()
-{
- Serial.begin(9600);
- Serial.print("Seriova linka je pripravena");
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  Serial.begin(9600);
+  Serial.println("Seriova linka je pripravena");
 }
 
-void loop() 
-{
-  if(Serial.available) > 0){
-    // riesime prichadzajuce data
+void loop() {
+  if (Serial.available() > 0) {
+    sprava = Serial.readString();
+    sprava.trim(); // Odstránenie medzier a nového riadka
+
+    if (sprava == "on") {
+      digitalWrite(ledPin, HIGH);
+      Serial.println("LED zapnuta");
+    } 
+    else if (sprava == "off") {
+      digitalWrite(ledPin, LOW);
+      Serial.println("LED vypnuta");
+    } 
+    else  {
+      Serial.println("Error");
+    }
+  }
 }
