@@ -1,1 +1,8 @@
-dal by som si bongo
+7:58
+
+void setup() {
+  	Serial.begin(9600);
+}
+
+void loop() {}
+
