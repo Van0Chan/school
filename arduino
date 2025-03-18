@@ -1,8 +1,13 @@
-7:58
+String sprava;
 
-void setup() {
-  	Serial.begin(9600);
+void setup()
+{
+ Serial.begin(9600);
+ Serial.print("Seriova linka je pripravena");
 }
 
-void loop() {}
-
+void loop() 
+{
+  if(Serial.available) > 0){
+    // riesime prichadzajuce data
+}
