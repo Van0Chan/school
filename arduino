@@ -8,13 +8,20 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available() > 0) {
+  if (Serial.available() > 0) { 
     sprava = Serial.readString();
-    Serial.print("Sprava ako string = ");
-    Serial.println(sprava); // Výpis reťazca
+    sprava.trim();
 
-    IntSprava = sprava.toInt(); // Konverzia na číslo
+    Serial.print("Sprava ako string = ");
+    Serial.println(sprava);
+
+    if (sprava == "on") IntSprava = 1;
+    else if (sprava == "off") IntSprava = 0;
+    else IntSprava = sprava.toInt();
+
     Serial.print("Sprava ako int = ");
-    Serial.println(IntSprava); // Výpis čísla
+    Serial.println(IntSprava);
+
+    digitalWrite(ledPin, IntSprava);
   }
 }
