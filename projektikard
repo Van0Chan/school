@@ -1,91 +1,99 @@
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <Adafruit_LiquidCrystal.h>
 #include <Keypad.h>
 
-// I2C skener - nahrajte najprv tento kód a zistite presnú adresu
-void setup_i2c_scanner() {
-  Wire.begin();
-  Serial.begin(9600);
-  Serial.println("\nI2C Scanner");
-}
-
-void loop_i2c_scanner() {
-  byte error, address;
-  int nDevices;
- 
-  Serial.println("Scanning...");
- 
-  nDevices = 0;
-  for(address = 1; address < 127; address++ ) {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
- 
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (address<16) 
-        Serial.print("0");
-      Serial.print(address,HEX);
-      Serial.println("  !");
- 
-      nDevices++;
-    }
-    else if (error==4) {
-      Serial.print("Unknown error at address 0x");
-      if (address<16) 
-        Serial.print("0");
-      Serial.println(address,HEX);
-    }    
-  }
-  if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
-  else
-    Serial.println("done\n");
- 
-  delay(5000);           // wait 5 seconds for next scan
-}
-
-// Hlavný projekt - LCD a Keypad
-// Inicializácia I2C LCD - ZMEŇTE ADRESU PODĽA SKENERA
-LiquidCrystal_I2C lcd(0x32, 20, 4);  // Pravdepodobná štandardná adresa
+// Inicializácia LCD
+Adafruit_LiquidCrystal lcd_1(0);
 
 // Definícia klávesnice
 const byte ROWS = 4;
 const byte COLS = 4;
 char keys[ROWS][COLS] = {
-  {'1','2','3','A'},
-  {'4','5','6','B'},
-  {'7','8','9','C'},
-  {'*','0','#','D'}
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'B'},
+  {'7', '8', '9', 'C'},
+  {'*', '0', '#', 'D'}
 };
-
-// Piny pre keypad (skontroluj zapojenie)
-byte rowPins[ROWS] = {9, 8, 7, 6};  
-byte colPins[COLS] = {5, 4, 3, 2};  
+byte rowPins[ROWS] = {9, 8, 7, 6};
+byte colPins[COLS] = {5, 4, 3, 2};
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
+// Pin pre piezo
+const int piezoPin = 10;
+
+// Prednastavený PIN
+const char correctPin[] = "9745";
+char enteredPin[5] = "";
+int pinIndex = 0;
+
+// Funkcia na zobrazenie textu na LCD
+void displayMessage(const char* message) {
+  lcd_1.clear();
+  lcd_1.setCursor(0, 0);
+  lcd_1.print(message);
+}
+
+// Funkcia na hranie jednoduchého tónu
+void playTone(int frequency, int duration) {
+  tone(piezoPin, frequency, duration);
+}
+
+// Funkcia na reset po zadaní PINu
+void resetPinEntry() {
+  delay(2000);
+  displayMessage("Zadaj PIN:");
+  pinIndex = 0;
+  memset(enteredPin, 0, sizeof(enteredPin));
+}
+
 void setup() {
-  Serial.begin(9600);  // Inicializácia sériovej komunikácie
+  Serial.begin(9600);
+  while (!Serial);
   Serial.println("Inicializácia...");
-  
-  // Inicializácia LCD
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
-  lcd.print("Stlac tlacidlo...");
+
+  lcd_1.begin(16, 2);
+  lcd_1.setBacklight(1);
+  displayMessage("Zadaj PIN:");
+
+  pinMode(piezoPin, OUTPUT);
 }
 
 void loop() {
-  char key = keypad.getKey();  // Získanie stlačeného tlačidla
+  char key = keypad.getKey();
   
-  if (key) {
-    Serial.print("Stlacil si: ");
-    Serial.println(key);
-    
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Stlacil si: ");
-    lcd.print(key);
-    
-    delay(500);  // Krátka pauza na prehľadnosť
+  if (key != NO_KEY) {
+    if (pinIndex < 4 && (key >= '0' && key <= '9')) {
+      enteredPin[pinIndex] = key;
+      pinIndex++;
+      
+      // Zobrazenie hviezdičiek
+      lcd_1.setCursor(0, 1);
+      for (int i = 0; i < pinIndex; i++) {
+        lcd_1.print("*");
+      }
+      
+      // Jednoduchý tón pre stlačenie
+      playTone(1500, 100);  // 1500 Hz na 100 ms
+      
+      Serial.print("Zadany znak: ");
+      Serial.println(key);
+    }
+
+    if (pinIndex == 4) {
+      Serial.print("Zadany PIN: ");
+      Serial.println(enteredPin);
+      
+      bool isCorrect = (strcmp(enteredPin, correctPin) == 0);
+      displayMessage(isCorrect ? "PIN spravny!" : "PIN nespravny!");
+      Serial.println(isCorrect ? "PIN je spravny!" : "PIN je nespravny!");
+      
+      // Jednoduchý tón pre výsledok
+      if (isCorrect) {
+        playTone(2000, 300);  // 2000 Hz na 300 ms pre úspech
+      } else {
+        playTone(800, 300);   // 800 Hz na 300 ms pre chybu
+      }
+      
+      resetPinEntry();
+    }
   }
 }
