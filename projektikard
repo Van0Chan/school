@@ -1,8 +1,8 @@
 #include <Adafruit_LiquidCrystal.h>
 #include <Keypad.h>
 
-// Inicializácia LCD
-Adafruit_LiquidCrystal lcd_1(0);
+// Inicializácia LCD cez I2C (adresa 0x27)
+Adafruit_LiquidCrystal lcd(0x27); // Uprav adresu (0x27) podľa tvojho displeja
 
 // Definícia klávesnice
 const byte ROWS = 4;
@@ -14,86 +14,151 @@ char keys[ROWS][COLS] = {
   {'*', '0', '#', 'D'}
 };
 byte rowPins[ROWS] = {9, 8, 7, 6};
-byte colPins[COLS] = {5, 4, 3, 2};
+byte colPins[COLS] = {13, 10, A0, A1};
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
-// Pin pre piezo
-const int piezoPin = 10;
+// Piny
+const int piezoPin = A2;
+const int pirPin = A3;
 
 // Prednastavený PIN
 const char correctPin[] = "9745";
 char enteredPin[5] = "";
 int pinIndex = 0;
+bool pinModeActive = false;
+unsigned long lastPirTrigger = 0;
+const unsigned long PIN_MODE_TIMEOUT = 5000; // Skrátené na 5 sekúnd na testovanie
+unsigned long startTime;
 
-// Funkcia na zobrazenie textu na LCD
+// Funkcia na zobrazenie textu
 void displayMessage(const char* message) {
-  lcd_1.clear();
-  lcd_1.setCursor(0, 0);
-  lcd_1.print(message);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(message);
 }
 
-// Funkcia na hranie jednoduchého tónu
+// Funkcia na zobrazenie dátumu a času
+void displayDateTime() {
+  unsigned long currentTime = (millis() - startTime) / 1000;
+  int hours = (currentTime / 3600) % 24;
+  int minutes = (currentTime / 60) % 60;
+  int seconds = currentTime % 60;
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("25/03/2025");
+  lcd.setCursor(0, 1);
+  if (hours < 10) lcd.print("0");
+  lcd.print(hours);
+  lcd.print(":");
+  if (minutes < 10) lcd.print("0");
+  lcd.print(minutes);
+  lcd.print(":");
+  if (seconds < 10) lcd.print("0");
+  lcd.print(seconds);
+  
+  Serial.println("Zobrazujem cas"); // Debug výpis
+}
+
+// Funkcia na hranie tónu
 void playTone(int frequency, int duration) {
   tone(piezoPin, frequency, duration);
 }
 
-// Funkcia na reset po zadaní PINu
+// Funkcia na reset PINu
 void resetPinEntry() {
   delay(2000);
-  displayMessage("Zadaj PIN:");
+  pinModeActive = false;
   pinIndex = 0;
   memset(enteredPin, 0, sizeof(enteredPin));
+  displayDateTime(); // Vráti sa na zobrazenie času
 }
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
-  Serial.println("Inicializácia...");
-
-  lcd_1.begin(16, 2);
-  lcd_1.setBacklight(1);
-  displayMessage("Zadaj PIN:");
-
+  lcd.begin(16, 2);     // Inicializácia LCD (16 stĺpcov, 2 riadky)
+  lcd.setBacklight(1);  // Zapnutie podsvietenia (1 = ON, 0 = OFF)
+  
   pinMode(piezoPin, OUTPUT);
+  pinMode(pirPin, INPUT);
+  
+  startTime = millis();
+  Serial.print("Start time: "); // Debug výpis
+  Serial.println(startTime);
+  displayDateTime();
 }
 
 void loop() {
-  char key = keypad.getKey();
+  static int lastPirState = LOW; // Statická premenná na sledovanie predchádzajúceho stavu PIR
+  int pirState = digitalRead(pirPin);
   
-  if (key != NO_KEY) {
-    if (pinIndex < 4 && (key >= '0' && key <= '9')) {
-      enteredPin[pinIndex] = key;
-      pinIndex++;
-      
-      // Zobrazenie hviezdičiek
-      lcd_1.setCursor(0, 1);
-      for (int i = 0; i < pinIndex; i++) {
-        lcd_1.print("*");
+  // Výpis PIR stavu iba pri zmene
+  if (pirState != lastPirState) {
+    Serial.print("PIR stav: ");
+    Serial.println(pirState);
+    lastPirState = pirState;
+  }
+
+  // Prechod do PIN módu pri detekcii pohybu s ochranou pred častou aktiváciou
+  if (pirState == HIGH && !pinModeActive && millis() - lastPirTrigger > 1000) {
+    pinModeActive = true;
+    lastPirTrigger = millis();
+    displayMessage("Zadaj PIN:");
+    playTone(1000, 200);
+    Serial.println("PIR aktivovany");
+  }
+
+  // PIN mód
+  if (pinModeActive) {
+    char key = keypad.getKey();
+    
+    if (key) {  // Kontrola, či bolo stlačené tlačidlo
+      lastPirTrigger = millis();
+      if (pinIndex < 4 && (key >= '0' && key <= '9')) {
+        enteredPin[pinIndex] = key;
+        pinIndex++;
+        
+        lcd.setCursor(0, 1);
+        for (int i = 0; i < pinIndex; i++) {
+          lcd.print("*");
+        }
+        
+        playTone(1500, 100);
+        Serial.print("Zadany znak: ");
+        Serial.println(key);
       }
-      
-      // Jednoduchý tón pre stlačenie
-      playTone(1500, 100);  // 1500 Hz na 100 ms
-      
-      Serial.print("Zadany znak: ");
-      Serial.println(key);
+
+      if (pinIndex == 4) {
+        Serial.print("Zadany PIN: ");
+        Serial.println(enteredPin);
+        
+        if (strcmp(enteredPin, correctPin) == 0) {
+          displayMessage("PIN spravny!");
+          playTone(2000, 300);
+          Serial.println("PIN je spravny!");
+        } else {
+          displayMessage("PIN nespravny!");
+          playTone(800, 300);
+          Serial.println("PIN je nespravny!");
+        }
+        
+        resetPinEntry();
+      }
     }
 
-    if (pinIndex == 4) {
-      Serial.print("Zadany PIN: ");
-      Serial.println(enteredPin);
-      
-      bool isCorrect = (strcmp(enteredPin, correctPin) == 0);
-      displayMessage(isCorrect ? "PIN spravny!" : "PIN nespravny!");
-      Serial.println(isCorrect ? "PIN je spravny!" : "PIN je nespravny!");
-      
-      // Jednoduchý tón pre výsledok
-      if (isCorrect) {
-        playTone(2000, 300);  // 2000 Hz na 300 ms pre úspech
-      } else {
-        playTone(800, 300);   // 800 Hz na 300 ms pre chybu
-      }
-      
-      resetPinEntry();
+    // Timeout
+    if (millis() - lastPirTrigger > PIN_MODE_TIMEOUT) {
+      pinModeActive = false;
+      displayDateTime();
+      Serial.println("Timeout - navrat na cas");
+    }
+  } 
+  // Zobrazenie dátumu a času bez delay
+  else {
+    static unsigned long lastUpdate = 0;
+    if (millis() - lastUpdate >= 1000) {
+      displayDateTime();
+      lastUpdate = millis();
     }
   }
 }
