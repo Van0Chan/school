@@ -1,0 +1,15 @@
+#include <Adafruit_LiquidCrystal.h>
+
+// Inicializácia LCD
+Adafruit_LiquidCrystal lcd(0);
+
+void setup() {
+    lcd.begin(16, 2); // Nastavenie LCD na 16x2 znaky
+    lcd.print("Voltmeter"); // Výpis textu na prvý riadok
+    lcd.setCursor(0, 1); // Presun kurzora na druhý riadok
+    lcd.print("A0="); // Výpis textu "A0=" na druhý riadok
+}
+
+void loop() {
+    // Tu môžeš doplniť kód na čítanie hodnoty z A0 a jej výpis na LCD
+}
